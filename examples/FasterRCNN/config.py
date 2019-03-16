@@ -255,14 +255,14 @@ def finalize_configs(is_training):
         os.environ['TF_CUDNN_USE_AUTOTUNE'] = '0'
         ngpu = get_num_gpu()
 
-    assert ngpu > 0, "Has to run with GPU!"
+    #assert ngpu > 0, "Has to run with GPU!"
     if _C.TRAIN.NUM_GPUS is None:
         _C.TRAIN.NUM_GPUS = ngpu
     else:
         if _C.TRAINER == 'horovod':
             assert _C.TRAIN.NUM_GPUS == ngpu
-        else:
-            assert _C.TRAIN.NUM_GPUS <= ngpu
+        #else:
+        #    assert _C.TRAIN.NUM_GPUS <= ngpu
 
     _C.freeze()
     logger.info("Config: ------------------------------------------\n" + str(_C))

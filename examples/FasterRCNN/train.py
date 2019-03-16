@@ -102,6 +102,13 @@ class DetectionModel(ModelDesc):
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
         head_losses = self.roi_heads(image, features, proposals, targets)
 
+        # Save the graph def (pb)
+        inference_graph = tf.get_default_graph().as_graph_def()
+        tf.train.write_graph(inference_graph, "/localdisk/niroop/built_graph/", "Fasterrcnnfpn_graph_def.pb", False)
+        tf.train.write_graph(inference_graph, "/localdisk/niroop/built_graph/", "Fasterrcnnfpn_graph_def.pbtxt", True)
+        with open("/localdisk/niroop/built_graph/inference_graph2.pbtxt", "w") as f:
+            f.write(str(inference_graph))    
+
         if self.training:
             wd_cost = regularize_cost(
                 '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
@@ -391,7 +398,8 @@ def visualize(model, model_path, nr_visualize=100, output_dir='output'):
 def offline_evaluate(pred_config, output_file):
     num_gpu = cfg.TRAIN.NUM_GPUS
     graph_funcs = MultiTowerOfflinePredictor(
-        pred_config, list(range(num_gpu))).get_predictors()
+        pred_config, list(range(num_gpu))).get_predictors()      
+
     predictors = []
     dataflows = []
     for k in range(num_gpu):
@@ -435,8 +443,9 @@ class EvalCallback(Callback):
             buggy_tf = get_tf_version_tuple() in [(1, 11), (1, 12)]
 
             # Use two predictor threads per GPU to get better throughput
-            self.num_predictor = num_gpu if buggy_tf else num_gpu * 2
-            self.predictors = [self._build_coco_predictor(k % num_gpu) for k in range(self.num_predictor)]
+            self.num_predictor = num_gpu #if buggy_tf else num_gpu * 2
+            #self.predictors = [self._build_coco_predictor(k % num_gpu) for k in range(self.num_predictor)]
+            self.predictors = [self._build_coco_predictor(-1) for k in range(self.num_predictor)]
             self.dataflows = [get_eval_dataflow(shard=k, num_shards=self.num_predictor)
                               for k in range(self.num_predictor)]
         else:
@@ -522,12 +531,20 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     if args.config:
+        
+        #for vscode only
+        #for args1 in args.config:
+        #    args2 = args1.replace('\"', '')
+        #    args3 = []
+        #    args3 = args2.split(',')
+        #    args.config = args3
+
         cfg.update_args(args.config)
 
     MODEL = ResNetFPNModel() if cfg.MODE_FPN else ResNetC4Model()
 
     if args.visualize or args.evaluate or args.predict:
-        assert tf.test.is_gpu_available()
+        #assert tf.test.is_gpu_available()
         assert args.load
         finalize_configs(is_training=False)
 
