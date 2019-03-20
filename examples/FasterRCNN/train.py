@@ -104,9 +104,9 @@ class DetectionModel(ModelDesc):
 
         # Save the graph def (pb)
         inference_graph = tf.get_default_graph().as_graph_def()
-        tf.train.write_graph(inference_graph, "/localdisk/niroop/built_graph/", "Fasterrcnnfpn_graph_def.pb", False)
-        tf.train.write_graph(inference_graph, "/localdisk/niroop/built_graph/", "Fasterrcnnfpn_graph_def.pbtxt", True)
-        with open("/localdisk/niroop/built_graph/inference_graph2.pbtxt", "w") as f:
+        tf.train.write_graph(inference_graph, "./temp/built_graph/", "Fasterrcnnfpn_graph_def.pb", False)
+        tf.train.write_graph(inference_graph, "./temp/built_graph/", "Fasterrcnnfpn_graph_def.pbtxt", True)
+        with open("./temp/built_graph/inference_graph2.pbtxt", "w") as f:
             f.write(str(inference_graph))    
 
         if self.training:
