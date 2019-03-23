@@ -102,13 +102,6 @@ class DetectionModel(ModelDesc):
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
         head_losses = self.roi_heads(image, features, proposals, targets)
 
-        # Save the graph def (pb)
-        inference_graph = tf.get_default_graph().as_graph_def()
-        tf.train.write_graph(inference_graph, "./temp/built_graph/", "Fasterrcnnfpn_graph_def.pb", False)
-        tf.train.write_graph(inference_graph, "./temp/built_graph/", "Fasterrcnnfpn_graph_def.pbtxt", True)
-        with open("./temp/built_graph/inference_graph2.pbtxt", "w") as f:
-            f.write(str(inference_graph))    
-
         if self.training:
             wd_cost = regularize_cost(
                 '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
@@ -399,6 +392,20 @@ def offline_evaluate(pred_config, output_file):
     num_gpu = cfg.TRAIN.NUM_GPUS
     graph_funcs = MultiTowerOfflinePredictor(
         pred_config, list(range(num_gpu))).get_predictors()      
+
+    # Save the graph def (pb)
+    #dir_path = os.path.dirname(os.path.realpath(__file__))
+    #dir_path = dir_path + "/temp/built_graph/"
+    #inference_graph = tf.get_default_graph().as_graph_def()
+    #tf.train.write_graph(inference_graph, dir_path, "Fasterrcnnfpn_graph_def.pb", False)
+    #tf.train.write_graph(inference_graph, dir_path, "Fasterrcnnfpn_graph_def.pbtxt", True)
+    #with open("./temp/built_graph/inference_graph2.pbtxt", "w") as f:
+    #    f.write(str(inference_graph))
+    
+    # Save the Frozen graph def     
+    #dir_path = os.path.dirname(os.path.realpath(__file__))
+    #dir_file = dir_path + "/temp/built_graph/Fasterrcnnfpn_graph_def_frozen.pb"
+    #ModelExporter(pred_config).export_compact(dir_file)
 
     predictors = []
     dataflows = []
