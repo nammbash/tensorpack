@@ -12,6 +12,7 @@ import numpy as np
 import json
 import six
 import tensorflow as tf
+import pickle
 try:
     import horovod.tensorflow as hvd
 except ImportError:
@@ -55,7 +56,6 @@ from eval import (
     detect_one_image, print_coco_metrics, DetectionResult)
 from config import finalize_configs, config as cfg
 
-
 class DetectionModel(ModelDesc):
     def preprocess(self, image):
         image = tf.expand_dims(image, 0)
@@ -91,8 +91,13 @@ class DetectionModel(ModelDesc):
         return ['image'], out
 
     def build_graph(self, *inputs):
+        #import ipdb
+        #ipdb.set_trace()
+        
+        inference_input_names = self.input_names
+        print(self.input_names)
         inputs = dict(zip(self.input_names, inputs))
-
+       
         image = self.preprocess(inputs['image'])     # 1CHW
 
         features = self.backbone(image)
@@ -410,6 +415,7 @@ def offline_evaluate(pred_config, output_file):
     predictors = []
     dataflows = []
     for k in range(num_gpu):
+        
         predictors.append(lambda img,
                           pred=graph_funcs[k]: detect_one_image(img, pred))
         dataflows.append(get_eval_dataflow(shard=k, num_shards=num_gpu))
@@ -519,7 +525,6 @@ class EvalCallback(Callback):
             logger.info("Running evaluation ...")
             self._eval()
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--load', help='load a model for evaluation or training. Can overwrite BACKBONE.WEIGHTS')
@@ -561,6 +566,7 @@ if __name__ == '__main__':
         if args.visualize:
             visualize(MODEL, args.load)
         else:
+            temp_model=MODEL
             predcfg = PredictConfig(
                 model=MODEL,
                 session_init=get_model_loader(args.load),

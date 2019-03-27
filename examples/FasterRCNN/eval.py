@@ -20,6 +20,13 @@ from coco import COCOMeta
 from common import CustomResize, clip_boxes
 from config import config as cfg
 
+import os
+import time
+import sys
+import numpy as np
+import tensorflow as tf
+import argparse
+
 DetectionResult = namedtuple(
     'DetectionResult',
     ['box', 'score', 'class_id', 'mask'])
@@ -58,6 +65,33 @@ def paste_mask(box, mask, shape):
     ret[y0:y1 + 1, x0:x1 + 1] = mask
     return ret
 
+def DetectOneImageModelFuncReadfromFrozenGraph(tfgraph, input_image_np):
+  config = tf.ConfigProto()
+  config.allow_soft_placement = True
+  config.intra_op_parallelism_threads = 28
+  config.inter_op_parallelism_threads = 1
+  with tf.Session(config=config) as sess1:     
+    with tf.gfile.FastGFile("/localdisk/niroop/repo/fasterrcnnfpn/nirooptensorpack/tensorpack/examples/FasterRCNN/temp/built_graph/old/Fasterrcnnfpn_graph_def_freezed_new.pb",'rb') as f:  # Load pb as graphdef
+      graphdef = tf.GraphDef() 
+      graphdef.ParseFromString(f.read()) 
+      #text_format.Merge(f.read(),graphdef) 
+      sess1.graph.as_default()  
+      tf.import_graph_def(graphdef, name='')
+      # Definite input and output Tensors for detection_graph
+      image_tensor = tfgraph.get_tensor_by_name('image:0')
+
+      # Each box represents a part of the image where a particular object was detected.
+      detection_boxes = tfgraph.get_tensor_by_name('tower0/output/boxes:0')
+      # Each score represent how level of confidence for each of the objects.
+      # Score is shown on the result image, together with the class label.
+      detection_scores = tfgraph.get_tensor_by_name('tower0/output/scores:0')
+      detection_classes = tfgraph.get_tensor_by_name('tower0/output/labels:0')
+      #num_detections = graph.get_tensor_by_name('num_detections:0') # Output Tensor
+      # # INFERENCE
+      tf.global_variables_initializer()    
+      #image_np_expanded=np.random.rand(800, 1202, 3).astype(np.uint8)
+      (boxes, scores, classes) = sess1.run([detection_boxes, detection_scores, detection_classes],feed_dict = {image_tensor : input_image_np})#,options=options, run_metadata=run_metadata )
+      return (boxes, scores, classes)
 
 def detect_one_image(img, model_func):
     """
@@ -77,7 +111,10 @@ def detect_one_image(img, model_func):
     resizer = CustomResize(cfg.PREPROC.TEST_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)
     resized_img = resizer.augment(img)
     scale = np.sqrt(resized_img.shape[0] * 1.0 / img.shape[0] * resized_img.shape[1] / img.shape[1])
-    boxes, probs, labels, *masks = model_func(resized_img)
+    #boxes, probs, labels, *masks = model_func(resized_img)
+    with tf.Graph().as_default() as graph1:
+        boxes, probs, labels, *masks = DetectOneImageModelFuncReadfromFrozenGraph(graph1, resized_img)
+
     boxes = boxes / scale
     # boxes are already clipped inside the graph, but after the floating point scaling, this may not be true any more.
     boxes = clip_boxes(boxes, orig_shape)
