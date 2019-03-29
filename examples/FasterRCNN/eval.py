@@ -176,6 +176,8 @@ def eval_coco(df, detect_func, tqdm_bar=None, loadfrozenpb=False):
     """
     all_results = []
     if loadfrozenpb:
+        print("Loading and inferecing from frozen graph and not checkpoint.")
+        print("-----------------------------------------------------------.")
         detectfrozen = DetectFromFrozenGraph()
         detectfrozen.SetupDetectFromFrozenGraph()
 
