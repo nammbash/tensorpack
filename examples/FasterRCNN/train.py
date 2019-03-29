@@ -90,14 +90,9 @@ class DetectionModel(ModelDesc):
             out.append('output/masks')
         return ['image'], out
 
-    def build_graph(self, *inputs):
-        #import ipdb
-        #ipdb.set_trace()
-        
-        inference_input_names = self.input_names
-        print(self.input_names)
-        inputs = dict(zip(self.input_names, inputs))
-       
+    def build_graph(self, *inputs):       
+        inputs = dict(zip(self.input_names, inputs))   
+  
         image = self.preprocess(inputs['image'])     # 1CHW
 
         features = self.backbone(image)
@@ -106,6 +101,9 @@ class DetectionModel(ModelDesc):
 
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
         head_losses = self.roi_heads(image, features, proposals, targets)
+
+        if args.savepb:
+            SaveModelToPb()        
 
         if self.training:
             wd_cost = regularize_cost(
@@ -340,6 +338,27 @@ class ResNetFPNModel(DetectionModel):
                 tf.sigmoid(final_mask_logits, name='output/masks')
             return []
 
+def SaveModelToPb(): 
+    # Save the graph def (pb)
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    dir_path = dir_path + "/temp/built_graph/"
+    
+    # Save the Graph pb tf way  
+    inference_graph = tf.get_default_graph().as_graph_def()
+    tf.train.write_graph(inference_graph, dir_path, "Fasterrcnnfpn_graph_def.pb", False)
+    tf.train.write_graph(inference_graph, dir_path, "Fasterrcnnfpn_graph_def.pbtxt", True)
+    
+    # Save the graph pb 
+    #with open("./temp/built_graph/inference_graph2.pbtxt", "w") as f:
+    #    f.write(str(inference_graph))
+    
+    # Save the Frozen graph def tensor pack way     
+    #dir_path = os.path.dirname(os.path.realpath(__file__))
+    #dir_file = dir_path + "/temp/built_graph/Fasterrcnnfpn_graph_def_frozen.pb"
+    #ModelExporter(pred_config).export_compact(dir_file)
+    
+    # Return without doing anything more.
+    print("Saved model in {}".format(dir_path))    
 
 def visualize(model, model_path, nr_visualize=100, output_dir='output'):
     """
@@ -396,33 +415,23 @@ def visualize(model, model_path, nr_visualize=100, output_dir='output'):
 def offline_evaluate(pred_config, output_file):
     num_gpu = cfg.TRAIN.NUM_GPUS
     graph_funcs = MultiTowerOfflinePredictor(
-        pred_config, list(range(num_gpu))).get_predictors()      
+        pred_config, list(range(num_gpu))).get_predictors()
 
-    # Save the graph def (pb)
-    #dir_path = os.path.dirname(os.path.realpath(__file__))
-    #dir_path = dir_path + "/temp/built_graph/"
-    #inference_graph = tf.get_default_graph().as_graph_def()
-    #tf.train.write_graph(inference_graph, dir_path, "Fasterrcnnfpn_graph_def.pb", False)
-    #tf.train.write_graph(inference_graph, dir_path, "Fasterrcnnfpn_graph_def.pbtxt", True)
-    #with open("./temp/built_graph/inference_graph2.pbtxt", "w") as f:
-    #    f.write(str(inference_graph))
-    
-    # Save the Frozen graph def     
-    #dir_path = os.path.dirname(os.path.realpath(__file__))
-    #dir_file = dir_path + "/temp/built_graph/Fasterrcnnfpn_graph_def_frozen.pb"
-    #ModelExporter(pred_config).export_compact(dir_file)
+    if args.savepb:
+        # We would have saved the built graph. So return
+        return
 
     predictors = []
     dataflows = []
     for k in range(num_gpu):
         
         predictors.append(lambda img,
-                          pred=graph_funcs[k]: detect_one_image(img, pred))
+                          pred=graph_funcs[k]: detect_one_image(img, pred, args.loadfrozenpb))
         dataflows.append(get_eval_dataflow(shard=k, num_shards=num_gpu))
     if num_gpu > 1:
         all_results = multithread_eval_coco(dataflows, predictors)
     else:
-        all_results = eval_coco(dataflows[0], predictors[0])
+        all_results = eval_coco(dataflows[0], predictors[0],loadfrozenpb=args.loadfrozenpb)
     with open(output_file, 'w') as f:
         json.dump(all_results, f)
     print_coco_metrics(output_file)
@@ -536,6 +545,10 @@ if __name__ == '__main__':
                                           "This argument is the path to the input image file")
     parser.add_argument('--config', help="A list of KEY=VALUE to overwrite those defined in config.py",
                         nargs='+')
+    parser.add_argument('--vscode', action='store_true', help='use vscode for debugging')
+    parser.add_argument('--savepb', action='store_true', help='save model to pb file. --evaluate should be specified.')
+    parser.add_argument('--loadfrozenpb', action='store_true', help='Evaluate from frozen pb file. --evaluate should be specified.')
+
 
     if get_tf_version_tuple() < (1, 6):
         # https://github.com/tensorflow/tensorflow/issues/14657
@@ -543,13 +556,14 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     if args.config:
-        
-        #for vscode only
-        #for args1 in args.config:
-        #    args2 = args1.replace('\"', '')
-        #    args3 = []
-        #    args3 = args2.split(',')
-        #    args.config = args3
+
+        if args.vscode:   
+            #for vscode only
+            for vsargs1 in args.config:
+                vsargs2 = vsargs1.replace('\"', '')
+                vsargs3 = []
+                vsargs3 = vsargs2.split(',')
+                args.config = vsargs3
 
         cfg.update_args(args.config)
 

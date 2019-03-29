@@ -65,35 +65,64 @@ def paste_mask(box, mask, shape):
     ret[y0:y1 + 1, x0:x1 + 1] = mask
     return ret
 
-def DetectOneImageModelFuncReadfromFrozenGraph(tfgraph, input_image_np):
-  config = tf.ConfigProto()
-  config.allow_soft_placement = True
-  config.intra_op_parallelism_threads = 28
-  config.inter_op_parallelism_threads = 1
-  with tf.Session(config=config) as sess1:     
-    with tf.gfile.FastGFile("/localdisk/niroop/repo/fasterrcnnfpn/nirooptensorpack/tensorpack/examples/FasterRCNN/temp/built_graph/old/Fasterrcnnfpn_graph_def_freezed_new.pb",'rb') as f:  # Load pb as graphdef
-      graphdef = tf.GraphDef() 
-      graphdef.ParseFromString(f.read()) 
-      #text_format.Merge(f.read(),graphdef) 
-      sess1.graph.as_default()  
-      tf.import_graph_def(graphdef, name='')
-      # Definite input and output Tensors for detection_graph
-      image_tensor = tfgraph.get_tensor_by_name('image:0')
+def DetectOneImageFromFrozenGraph(input_image_np):
 
-      # Each box represents a part of the image where a particular object was detected.
-      detection_boxes = tfgraph.get_tensor_by_name('tower0/output/boxes:0')
-      # Each score represent how level of confidence for each of the objects.
-      # Score is shown on the result image, together with the class label.
-      detection_scores = tfgraph.get_tensor_by_name('tower0/output/scores:0')
-      detection_classes = tfgraph.get_tensor_by_name('tower0/output/labels:0')
-      #num_detections = graph.get_tensor_by_name('num_detections:0') # Output Tensor
-      # # INFERENCE
-      tf.global_variables_initializer()    
-      #image_np_expanded=np.random.rand(800, 1202, 3).astype(np.uint8)
-      (boxes, scores, classes) = sess1.run([detection_boxes, detection_scores, detection_classes],feed_dict = {image_tensor : input_image_np})#,options=options, run_metadata=run_metadata )
-      return (boxes, scores, classes)
+    # Each box represents a part of the image where a particular object was detected.
+    graph = DetectFromFrozenGraph.sessionvalues[0]
+    #config = DetectFromFrozenGraph.sessionvalues[1]
+    pbsession = DetectFromFrozenGraph.sessionvalues[1]    
+    image_tensor = DetectFromFrozenGraph.sessionvalues[2]
+    detection_boxes = DetectFromFrozenGraph.sessionvalues[3]
+    detection_scores = DetectFromFrozenGraph.sessionvalues[4]
+    detection_labels = DetectFromFrozenGraph.sessionvalues[5]
 
-def detect_one_image(img, model_func):
+    # Run real inference from the frozen graph.
+    (boxes, scores, labels) = pbsession.run([detection_boxes, detection_scores, detection_labels],feed_dict = {image_tensor : input_image_np})#,options=options, run_metadata=run_metadata )
+    return (boxes, scores, labels)
+
+class DetectFromFrozenGraph:
+    sessionvalues = []
+
+    def SetupDetectFromFrozenGraph(self):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        dir_path = dir_path + "/temp/built_graph"
+        frozen_model_path = dir_path + "/Fasterrcnnfpn_graph_def_freezed.pb"
+
+        config = tf.ConfigProto()
+        config.allow_soft_placement = True
+        config.intra_op_parallelism_threads = 28
+        config.inter_op_parallelism_threads = 1
+        #with tf.Session(config=config) as pbsession:
+        with tf.Graph().as_default() as tfgraph:
+            with tf.gfile.FastGFile(frozen_model_path,'rb') as f:  # Load pb as graphdef
+                #graph = tf.Graph()
+                graphdef = tf.GraphDef() 
+                graphdef.ParseFromString(f.read()) 
+                #text_format.Merge(f.read(),graphdef) 
+                #pbsession.graph.as_default()
+                with tfgraph.as_default() :
+                    tf.import_graph_def(graphdef, name='')
+                # Definite input and output Tensors for detection_graph
+                image_tensor = tfgraph.get_tensor_by_name('image:0')
+                detection_boxes = tfgraph.get_tensor_by_name('tower0/output/boxes:0')
+                detection_scores = tfgraph.get_tensor_by_name('tower0/output/scores:0')
+                detection_labels = tfgraph.get_tensor_by_name('tower0/output/labels:0')
+                
+                # Get a permanent session object
+                pbsession = tf.Session(graph=tfgraph, config=config)
+                # initialize the session
+                tf.global_variables_initializer()
+
+                # Store all the global variables in the class list.
+                self.sessionvalues.append(tfgraph)
+                #self.sessionvalues.append(config)
+                self.sessionvalues.append(pbsession)                                
+                self.sessionvalues.append(image_tensor)
+                self.sessionvalues.append(detection_boxes)
+                self.sessionvalues.append(detection_scores)
+                self.sessionvalues.append(detection_labels)
+
+def detect_one_image(img, model_func, loadfrozenpb=False):
     """
     Run detection on one image, using the TF callable.
     This function should handle the preprocessing internally.
@@ -111,10 +140,12 @@ def detect_one_image(img, model_func):
     resizer = CustomResize(cfg.PREPROC.TEST_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)
     resized_img = resizer.augment(img)
     scale = np.sqrt(resized_img.shape[0] * 1.0 / img.shape[0] * resized_img.shape[1] / img.shape[1])
-    #boxes, probs, labels, *masks = model_func(resized_img)
-    with tf.Graph().as_default() as graph1:
-        boxes, probs, labels, *masks = DetectOneImageModelFuncReadfromFrozenGraph(graph1, resized_img)
-
+    
+    if not loadfrozenpb:
+        boxes, probs, labels, *masks = model_func(resized_img)
+    else:
+        boxes, probs, labels, *masks = DetectOneImageFromFrozenGraph(resized_img)
+    
     boxes = boxes / scale
     # boxes are already clipped inside the graph, but after the floating point scaling, this may not be true any more.
     boxes = clip_boxes(boxes, orig_shape)
@@ -132,7 +163,7 @@ def detect_one_image(img, model_func):
     return results
 
 
-def eval_coco(df, detect_func, tqdm_bar=None):
+def eval_coco(df, detect_func, tqdm_bar=None, loadfrozenpb=False):
     """
     Args:
         df: a DataFlow which produces (image, image_id)
@@ -143,9 +174,13 @@ def eval_coco(df, detect_func, tqdm_bar=None):
     Returns:
         list of dict, to be dumped to COCO json format
     """
-    df.reset_state()
     all_results = []
-    # tqdm is not quite thread-safe: https://github.com/tqdm/tqdm/issues/323
+    if loadfrozenpb:
+        detectfrozen = DetectFromFrozenGraph()
+        detectfrozen.SetupDetectFromFrozenGraph()
+
+    # tqdm is not quite thread-safe: https://github.com/tqdm/tqdm/issues/323    
+
     with ExitStack() as stack:
         if tqdm_bar is None:
             tqdm_bar = stack.enter_context(

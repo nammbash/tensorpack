@@ -23,25 +23,28 @@ def DetectOneImageModelFuncReadfromFrozenGraph(input_image_np=None):
     with tf.gfile.FastGFile("/localdisk/niroop/repo/fasterrcnnfpn/nirooptensorpack/tensorpack/examples/FasterRCNN/temp/built_graph/old/Fasterrcnnfpn_graph_def_freezed.pb",'rb') as f:  # Load pb as graphdef
       graphdef = tf.GraphDef() 
       graphdef.ParseFromString(f.read()) 
-      #text_format.Merge(f.read(),graphdef) 
       sess.graph.as_default()  
       tf.import_graph_def(graphdef, name='')
+
       # Definite input and output Tensors for detection_graph
       image_tensor = graph.get_tensor_by_name('image:0')
-
-      # Each box represents a part of the image where a particular object was detected.
       detection_boxes = graph.get_tensor_by_name('tower0/output/boxes:0')
-      # Each score represent how level of confidence for each of the objects.
-      # Score is shown on the result image, together with the class label.
-      detection_scores = graph.get_tensor_by_name('tower0/output/TopKV2:0')
-      detection_classes = graph.get_tensor_by_name('tower0/output/unstack:0')
-      #num_detections = graph.get_tensor_by_name('num_detections:0') # Output Tensor
-      # # INFERENCE
+      detection_scores = graph.get_tensor_by_name('tower0/output/scores:0')
+      detection_classes = graph.get_tensor_by_name('tower0/output/labels:0')
+      
+      ## INFERENCE
       tf.global_variables_initializer()    
-      #(boxes, scores, classes) = sess.run([detection_boxes, detection_scores, detection_classes],feed_dict = {image_tensor : image_np_expanded})#,options=options, run_metadata=run_metadata )
-      if input_image_np == None:
+      if not input_image_np:
+        # Load Dummy data
         image_np_expanded=np.random.rand(800, 1202, 3).astype(np.uint8)
+      else:
+        # you can do all the preprocessing for an image here.
+        # and send the image_np_expanded
+        # input_image_np=image.preprocessstepsfromtrain.py(input_image)  
       (boxes, scores, classes) = sess.run([detection_boxes, detection_scores, detection_classes],feed_dict = {image_tensor : image_np_expanded})#,options=options, run_metadata=run_metadata )
+      #for _ in range(500):
+      #  image_np_expanded=np.random.rand(800, 1202, 3).astype(np.uint8)
+      #  (boxes, scores, classes) = sess.run([detection_boxes, detection_scores, detection_classes],feed_dict = {image_tensor : image_np_expanded})#,options=options, run_metadata=run_metadata )          
       return (boxes, scores, classes)
       #i = 0
       #avg=0
