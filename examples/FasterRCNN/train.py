@@ -431,7 +431,7 @@ def offline_evaluate(pred_config, output_file):
     if num_gpu > 1:
         all_results = multithread_eval_coco(dataflows, predictors)
     else:
-        all_results = eval_coco(dataflows[0], predictors[0],loadfrozenpb=args.loadfrozenpb)
+        all_results = eval_coco(dataflows[0], predictors[0], tfargs=args)
     with open(output_file, 'w') as f:
         json.dump(all_results, f)
     print_coco_metrics(output_file)
@@ -535,6 +535,7 @@ class EvalCallback(Callback):
             self._eval()
 
 if __name__ == '__main__':
+    model_name = "Fasterrcnnfpn_graph_def_freezed.pb"
     parser = argparse.ArgumentParser()
     parser.add_argument('--load', help='load a model for evaluation or training. Can overwrite BACKBONE.WEIGHTS')
     parser.add_argument('--logdir', help='log directory', default='train_log/maskrcnn')
@@ -547,7 +548,8 @@ if __name__ == '__main__':
                         nargs='+')
     parser.add_argument('--vscode', action='store_true', help='use vscode for debugging')
     parser.add_argument('--savepb', action='store_true', help='save model to pb file. --evaluate should be specified.')
-    parser.add_argument('--loadfrozenpb', action='store_true', help='Evaluate from frozen pb file. --evaluate should be specified.')
+    parser.add_argument('--loadfrozenpb', action='store_true', help='Evaluate from frozen pb file. --evaluate should be specified.', default=False)
+    parser.add_argument('--model_name', help='name of the directory', default=model_name)
 
 
     if get_tf_version_tuple() < (1, 6):

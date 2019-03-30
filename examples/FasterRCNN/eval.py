@@ -83,10 +83,14 @@ def DetectOneImageFromFrozenGraph(input_image_np):
 class DetectFromFrozenGraph:
     sessionvalues = []
 
-    def SetupDetectFromFrozenGraph(self):
+    def SetupDetectFromFrozenGraph(self, args):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         dir_path = dir_path + "/temp/built_graph"
-        frozen_model_path = dir_path + "/Fasterrcnnfpn_graph_def_freezed.pb"
+        frozen_model_path = dir_path + "/" + args.model_name
+
+        print("***********************************************************") 
+        print("Loading and inferencing model: {}".format(frozen_model_path))
+        print("***********************************************************")
 
         config = tf.ConfigProto()
         config.allow_soft_placement = True
@@ -163,7 +167,7 @@ def detect_one_image(img, model_func, loadfrozenpb=False):
     return results
 
 
-def eval_coco(df, detect_func, tqdm_bar=None, loadfrozenpb=False):
+def eval_coco(df, detect_func, tqdm_bar=None, tfargs=None):
     """
     Args:
         df: a DataFlow which produces (image, image_id)
@@ -175,11 +179,11 @@ def eval_coco(df, detect_func, tqdm_bar=None, loadfrozenpb=False):
         list of dict, to be dumped to COCO json format
     """
     all_results = []
-    if loadfrozenpb:
+    if tfargs.loadfrozenpb:
         print("Loading and inferecing from frozen graph and not checkpoint.")
         print("-----------------------------------------------------------.")
         detectfrozen = DetectFromFrozenGraph()
-        detectfrozen.SetupDetectFromFrozenGraph()
+        detectfrozen.SetupDetectFromFrozenGraph(tfargs)
 
     # tqdm is not quite thread-safe: https://github.com/tqdm/tqdm/issues/323    
 
