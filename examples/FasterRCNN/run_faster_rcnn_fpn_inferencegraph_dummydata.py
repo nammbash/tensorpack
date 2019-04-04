@@ -57,7 +57,6 @@ def DetectOneImageModelFuncReadfromFrozenGraph(input_image_np=None):
       # Choose type of inference 1. single or 2.average
       #inference_type = "single"
       inference_type = "average"
-      bool_timeline = True
       # Do actual inference
       if inference_type == "single":
         (boxes, scores, classes) = sess.run([detection_boxes, detection_scores, detection_classes],feed_dict = {image_tensor : image_np_expanded})#,options=options, run_metadata=run_metadata )
@@ -70,7 +69,7 @@ def DetectOneImageModelFuncReadfromFrozenGraph(input_image_np=None):
           i+=1          
           #image_np_expanded=np.random.rand(800, 1202, 3).astype(np.uint8)
           start_time = time.time()
-          if not bool_timeline: 
+          if not args.fetch_timeline: 
             (boxes, scores, classes) = sess.run([detection_boxes, detection_scores, detection_classes],feed_dict = {image_tensor : image_np_expanded})#,options=options, run_metadata=run_metadata ) 
           else:
             frozen_model_trace_path = dir_path + "trace/" + file_name +"_timeline_frcnnfpn_{}_dummy.json".format(i)
@@ -98,6 +97,8 @@ if __name__ == '__main__':
   parser.add_argument('--main_dir', help='main directory containing temp folder', default=main_dir_path)
   parser.add_argument('--model_name', help='name of the directory', default=model_name)
   parser.add_argument('--image_count', type=int, help='number of input image/loop count', default=10)
+  parser.add_argument('--fetch_timeline', action='store_true', help='fetch timeline for pb file.')
+
   args = parser.parse_args()
 
   with tf.Graph().as_default() as graph:
