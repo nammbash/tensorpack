@@ -16,16 +16,20 @@ from tensorflow.python.client import timeline
 #os.environ["KMP_AFFINITY"]= "granularity=fine,verbose,compact,1,0"
 #os.environ["OMP_NUM_THREADS"] = "28"
 
+def ensure_dir(file_path):
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
 def DetectOneImageModelFuncReadfromFrozenGraph(input_image_np=None):
   config = tf.ConfigProto()
   config.allow_soft_placement = True
   config.intra_op_parallelism_threads = 28
   config.inter_op_parallelism_threads = 1
 
-  dir_path = args.main_dir + "/temp/built_graph/"
   with tf.Session(config=config) as sess:
     file_name = args.model_name
-    file_path= dir_path + file_name
+    file_path= args.main_dir + file_name
 
     print("***************************************************") 
     print("Loading and inferencing model: {}".format(file_path))
@@ -69,10 +73,12 @@ def DetectOneImageModelFuncReadfromFrozenGraph(input_image_np=None):
           i+=1          
           #image_np_expanded=np.random.rand(800, 1202, 3).astype(np.uint8)
           start_time = time.time()
-          if not args.fetch_timeline: 
+          if not args.timeline: 
             (boxes, scores, classes) = sess.run([detection_boxes, detection_scores, detection_classes],feed_dict = {image_tensor : image_np_expanded})#,options=options, run_metadata=run_metadata ) 
           else:
-            frozen_model_trace_path = dir_path + "trace/" + file_name +"_timeline_frcnnfpn_{}_dummy.json".format(i)
+            frozen_model_trace_path = dir_path + "trace/" + file_name + "/"
+            ensure_dir(frozen_model_trace_path)
+            frozen_model_trace_path = frozen_model_trace_path + "timeline_frcnnfpn_{}_dummy.json".format(i)
 
             run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             run_metadata = tf.RunMetadata()
@@ -91,13 +97,13 @@ def DetectOneImageModelFuncReadfromFrozenGraph(input_image_np=None):
       return (boxes, scores, classes)
 
 if __name__ == '__main__':
-  main_dir_path = os.path.dirname(os.path.realpath(__file__))
+  main_dir_path = os.path.dirname(os.path.realpath(__file__)) + "/temp/built_graph/"
   model_name = "Fasterrcnnfpn_graph_def_freezed.pb"
   parser = argparse.ArgumentParser()
   parser.add_argument('--main_dir', help='main directory containing temp folder', default=main_dir_path)
   parser.add_argument('--model_name', help='name of the directory', default=model_name)
   parser.add_argument('--image_count', type=int, help='number of input image/loop count', default=10)
-  parser.add_argument('--fetch_timeline', action='store_true', help='fetch timeline for pb file.')
+  parser.add_argument('--timeline', action='store_true', help='fetch timeline for pb file.')
 
   args = parser.parse_args()
 
