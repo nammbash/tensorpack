@@ -148,7 +148,7 @@ def crop_and_resize(image, boxes, box_ind, crop_size, pad_border=True):
     ret = tf.image.crop_and_resize(
         image, boxes, tf.to_int32(box_ind),
         crop_size=[crop_size, crop_size])
-    ret = tf.transpose(ret, [0, 3, 1, 2])   # ncss
+    #ret = tf.transpose(ret, [0, 3, 1, 2])   # ncss
     return ret
 
 
@@ -168,7 +168,9 @@ def roi_align(featuremap, boxes, resolution):
         featuremap, boxes,
         tf.zeros([tf.shape(boxes)[0]], dtype=tf.int32),
         resolution * 2)
-    ret = tf.nn.avg_pool(ret, [1, 1, 2, 2], [1, 1, 2, 2], padding='SAME', data_format='NCHW')
+    #ret = tf.nn.avg_pool(ret, [1, 1, 2, 2], [1, 1, 2, 2], padding='SAME', data_format='NCHW')
+    ret = tf.nn.avg_pool(ret, [1, 2, 2, 1], [1, 2, 2, 1], padding='SAME', data_format='NHWC')
+    ret = tf.transpose(ret, [0, 3, 1, 2])   # ncss
     return ret
 
 

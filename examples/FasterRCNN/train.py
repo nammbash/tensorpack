@@ -60,7 +60,8 @@ class DetectionModel(ModelDesc):
     def preprocess(self, image):
         image = tf.expand_dims(image, 0)
         image = image_preprocess(image, bgr=True)
-        return tf.transpose(image, [0, 3, 1, 2])
+        #return tf.transpose(image, [0, 3, 1, 2])
+        return image
 
     @property
     def training(self):
@@ -92,8 +93,9 @@ class DetectionModel(ModelDesc):
 
     def build_graph(self, *inputs):       
         inputs = dict(zip(self.input_names, inputs))   
-  
-        image = self.preprocess(inputs['image'])     # 1CHW
+
+        #image_shape2d = tf.shape(image)[:2]     # h,w
+        image = self.preprocess(inputs['image'])     # 1HWC
 
         features = self.backbone(image)
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}

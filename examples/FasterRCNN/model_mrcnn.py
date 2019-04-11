@@ -64,8 +64,8 @@ def maskrcnn_upXconv_head(feature, num_category, num_convs, norm=None):
         mask_logits (N x num_category x 2s x 2s):
     """
     assert norm in [None, 'GN'], norm
-    l = feature
-    with argscope([Conv2D, Conv2DTranspose], data_format='channels_first',
+    l = tf.transpose(feature, [0, 2, 3, 1])
+    with argscope([Conv2D, Conv2DTranspose], data_format='channels_last',
                   kernel_initializer=tf.variance_scaling_initializer(
                       scale=2.0, mode='fan_out', distribution='normal')):
         # c2's MSRAFill is fan_out
@@ -75,6 +75,7 @@ def maskrcnn_upXconv_head(feature, num_category, num_convs, norm=None):
                 l = GroupNorm('gn{}'.format(k), l)
         l = Conv2DTranspose('deconv', l, cfg.MRCNN.HEAD_DIM, 2, strides=2, activation=tf.nn.relu)
         l = Conv2D('conv', l, num_category, 1)
+        l = tf.transpose(l, [0, 3, 1, 2])
     return l
 
 

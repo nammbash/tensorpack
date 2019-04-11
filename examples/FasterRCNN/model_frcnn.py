@@ -282,14 +282,15 @@ def fastrcnn_Xconv1fc_head(feature, num_convs, norm=None):
         2D head feature
     """
     assert norm in [None, 'GN'], norm
-    l = feature
-    with argscope(Conv2D, data_format='channels_first',
+    l = tf.transpose(feature, [0, 2, 3, 1])
+    with argscope(Conv2D, data_format='channels_last',
                   kernel_initializer=tf.variance_scaling_initializer(
                       scale=2.0, mode='fan_out', distribution='normal')):
         for k in range(num_convs):
             l = Conv2D('conv{}'.format(k), l, cfg.FPN.FRCNN_CONV_HEAD_DIM, 3, activation=tf.nn.relu)
             if norm is not None:
                 l = GroupNorm('gn{}'.format(k), l)
+        l = tf.transpose(l, [0, 3, 1, 2])
         l = FullyConnected('fc', l, cfg.FPN.FRCNN_FC_HEAD_DIM,
                            kernel_initializer=tf.variance_scaling_initializer(), activation=tf.nn.relu)
     return l
